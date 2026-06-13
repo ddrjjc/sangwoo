@@ -59,7 +59,8 @@ if (socket) {
     });
 
     socket.on('blockPlaced', (blockData) => {
-        const newBlock = new THREE.Mesh(blockGeometry, placeBlockType);
+        const material = blockMaterials[blockData.type] || groundMaterial;
+        const newBlock = new THREE.Mesh(blockGeometry, material);
         newBlock.position.set(blockData.x, blockData.y, blockData.z);
         scene.add(newBlock);
         worldBlocks.push(newBlock);
@@ -102,29 +103,54 @@ const blockGeometry = new THREE.BoxGeometry(blockSize, blockSize, blockSize);
 const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x00ff00 }); // Green for grass
 const stoneMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 }); // Grey for stone
 const dirtMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 }); // Brown for dirt
+const woodMaterial = new THREE.MeshLambertMaterial({ color: 0x654321 }); // Dark brown for wood
+const lavaMaterial = new THREE.MeshLambertMaterial({ color: 0xff4500, emissive: 0xff0000 }); // Glowing lava
+
+const blockMaterials = {
+    'grass': groundMaterial,
+    'dirt': dirtMaterial,
+    'stone': stoneMaterial,
+    'wood': woodMaterial,
+    'lava': lavaMaterial
+};
 
 const worldBlocks = []; // To store references to all blocks in the world
 
 for (let x = -worldWidth / 2; x < worldWidth / 2; x++) {
     for (let z = -worldDepth / 2; z < worldDepth / 2; z++) {
-        // Ground layer
+        // Top layer (Grass)
         let block = new THREE.Mesh(blockGeometry, groundMaterial);
         block.position.set(x * blockSize, -0.5 * blockSize, z * blockSize);
         scene.add(block);
         worldBlocks.push(block);
 
-        // A layer of dirt under the grass
+        // Dirt layer
         block = new THREE.Mesh(blockGeometry, dirtMaterial);
         block.position.set(x * blockSize, -1.5 * blockSize, z * blockSize);
         scene.add(block);
         worldBlocks.push(block);
 
-        // A layer of stone under the dirt
-        block = new THREE.Mesh(blockGeometry, stoneMaterial);
+        // Lava layer (At the very bottom)
+        block = new THREE.Mesh(blockGeometry, lavaMaterial);
         block.position.set(x * blockSize, -2.5 * blockSize, z * blockSize);
         scene.add(block);
         worldBlocks.push(block);
     }
+}
+
+// Inventory System
+let selectedBlockIndex = 0;
+const inventory = ['grass', 'dirt', 'stone', 'wood'];
+const hotbarSlots = document.querySelectorAll('.slot');
+
+function updateInventoryUI() {
+    hotbarSlots.forEach((slot, index) => {
+        if (index === selectedBlockIndex) {
+            slot.classList.add('active');
+        } else {
+            slot.classList.remove('active');
+        }
+    });
 }
 
 // Player Controls
@@ -185,6 +211,22 @@ document.addEventListener('keydown', function (event) {
             if (canJump === true) velocity.y += 350;
             canJump = false;
             break;
+        case 'Digit1':
+            selectedBlockIndex = 0;
+            updateInventoryUI();
+            break;
+        case 'Digit2':
+            selectedBlockIndex = 1;
+            updateInventoryUI();
+            break;
+        case 'Digit3':
+            selectedBlockIndex = 2;
+            updateInventoryUI();
+            break;
+        case 'Digit4':
+            selectedBlockIndex = 3;
+            updateInventoryUI();
+            break;
     }
 });
 
@@ -212,13 +254,9 @@ document.addEventListener('keyup', function (event) {
 // Block Interaction
 const raycaster = new THREE.Raycaster();
 
-let placeBlockType = new THREE.MeshLambertMaterial({ color: 0xff0000 }); // Red block to place
-
 document.addEventListener('mousedown', function (event) {
     if (controls.isLocked === true) {
-        // Use the center of the screen for raycasting when pointer is locked
         raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-
         const intersects = raycaster.intersectObjects(worldBlocks);
 
         if (intersects.length > 0) {
@@ -232,9 +270,17 @@ document.addEventListener('mousedown', function (event) {
             } else if (event.button === 2) { // Right click to place
                 const normal = intersect.face.normal;
                 const newBlockPosition = new THREE.Vector3().copy(intersect.object.position).add(normal);
+                const blockType = inventory[selectedBlockIndex];
+                const material = blockMaterials[blockType];
 
-                if (socket) socket.emit('blockPlaced', { x: newBlockPosition.x, y: newBlockPosition.y, z: newBlockPosition.z });
-                const newBlock = new THREE.Mesh(blockGeometry, placeBlockType);
+                if (socket) socket.emit('blockPlaced', { 
+                    x: newBlockPosition.x, 
+                    y: newBlockPosition.y, 
+                    z: newBlockPosition.z,
+                    type: blockType
+                });
+                
+                const newBlock = new THREE.Mesh(blockGeometry, material);
                 newBlock.position.copy(newBlockPosition);
                 scene.add(newBlock);
                 worldBlocks.push(newBlock);
@@ -278,6 +324,13 @@ function animate() {
             velocity.y = 0;
             controls.object.position.y = 1;
             canJump = true;
+        }
+
+        // Lava Check (Simple)
+        if (controls.object.position.y < -1.5) {
+            // Respawn if falling into lava
+            controls.object.position.set(0, 5, 10);
+            velocity.set(0, 0, 0);
         }
 
         // Emit movement to server
