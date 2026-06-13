@@ -6,9 +6,20 @@
   <title>Hello World</title>
   <link href='/style.css' rel='stylesheet'>
 </head>
-<body>
-  <h1>Hello, world!</h1>
-  <button onclick="console.log('hello');">Press me</button>
-  <script defer type="text/javascript" src="/main.js"></script>
-</body>
-</html>
+  <body>
+    <div id="blocker">
+      <div id="instructions">
+        <p style="font-size:36px">Click to play</p>
+        <p>
+          Move: WASD<br/>
+          Jump: SPACE<br/>
+          Left Click: Destroy<br/>
+          Right Click: Place
+        </p>
+      </div>
+    </div>
+    <div id="crosshair"></div>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.184.0/addons/controls/PointerLockControls.js"></script>
+    <script defer type="text/javascript" src="/main.js"></script>
+  </body></html>
