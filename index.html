@@ -3,8 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hello World</title>
+  <title>Sangwoo Minecraft Clone</title>
   <link href='style.css' rel='stylesheet'>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/",
+        "socket.io-client": "https://cdn.socket.io/4.7.5/socket.io.esm.min.js"
+      }
+    }
+  </script>
 </head>
   <body>
     <div id="blocker">
@@ -19,8 +28,5 @@
       </div>
     </div>
     <div id="crosshair"></div>
-    <script src="socket.io/socket.io.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.184.0/addons/controls/PointerLockControls.js"></script>
-    <script defer type="text/javascript" src="main.js"></script>
+    <script type="module" src="main.js"></script>
   </body></html>

@@ -1,3 +1,7 @@
+import * as THREE from 'three';
+import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+import { io } from 'socket.io-client';
+
 // Scene
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb); // Sky blue background
@@ -14,12 +18,12 @@ document.body.appendChild(renderer.domElement);
 let socket;
 if (typeof io !== 'undefined') {
     try {
+        // When hosted on Cloudflare Pages, we might want to connect to a specific server
+        // For now, it tries to connect to the same host
         socket = io();
     } catch (e) {
         console.error("Socket.io initialization failed:", e);
     }
-} else {
-    console.warn("Socket.io is not defined. Multiplayer features will be disabled.");
 }
 
 const remotePlayers = {};
@@ -123,7 +127,7 @@ for (let x = -worldWidth / 2; x < worldWidth / 2; x++) {
 }
 
 // Player Controls
-const controls = new THREE.PointerLockControls(camera, document.body);
+const controls = new PointerLockControls(camera, document.body);
 
 const blocker = document.getElementById('blocker');
 const instructions = document.getElementById('instructions');
@@ -206,7 +210,6 @@ document.addEventListener('keyup', function (event) {
 
 // Block Interaction
 const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2();
 
 let placeBlockType = new THREE.MeshLambertMaterial({ color: 0xff0000 }); // Red block to place
 
