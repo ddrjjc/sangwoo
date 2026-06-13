@@ -62,6 +62,7 @@ if (socket) {
         const material = blockMaterials[blockData.type] || groundMaterial;
         const newBlock = new THREE.Mesh(blockGeometry, material);
         newBlock.position.set(blockData.x, blockData.y, blockData.z);
+        newBlock.userData.type = blockData.type;
         scene.add(newBlock);
         worldBlocks.push(newBlock);
     });
@@ -72,7 +73,7 @@ if (socket) {
             Math.round(b.position.y) === Math.round(blockData.y) && 
             Math.round(b.position.z) === Math.round(blockData.z)
         );
-        if (blockToRemove) {
+        if (blockToRemove && blockToRemove.userData.type !== 'lava') {
             scene.remove(blockToRemove);
             worldBlocks.splice(worldBlocks.indexOf(blockToRemove), 1);
         }
@@ -121,21 +122,86 @@ for (let x = -worldWidth / 2; x < worldWidth / 2; x++) {
         // Top layer (Grass)
         let block = new THREE.Mesh(blockGeometry, groundMaterial);
         block.position.set(x * blockSize, -0.5 * blockSize, z * blockSize);
+        block.userData.type = 'grass';
         scene.add(block);
         worldBlocks.push(block);
 
         // Dirt layer
         block = new THREE.Mesh(blockGeometry, dirtMaterial);
         block.position.set(x * blockSize, -1.5 * blockSize, z * blockSize);
+        block.userData.type = 'dirt';
         scene.add(block);
         worldBlocks.push(block);
 
-        // Lava layer (At the very bottom)
+        // Lava layer (At the very bottom) - Unbreakable
         block = new THREE.Mesh(blockGeometry, lavaMaterial);
         block.position.set(x * blockSize, -2.5 * blockSize, z * blockSize);
+        block.userData.type = 'lava';
         scene.add(block);
         worldBlocks.push(block);
     }
+}
+
+// Creeper Mob Implementation
+class Creeper {
+    constructor(x, y, z) {
+        this.group = new THREE.Group();
+        
+        const creeperMaterial = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
+        const faceMaterial = new THREE.MeshLambertMaterial({ color: 0x000000 });
+
+        // Head
+        const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), creeperMaterial);
+        head.position.y = 1.4;
+        this.group.add(head);
+
+        // Body
+        const body = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.6, 0.2), creeperMaterial);
+        body.position.y = 0.9;
+        this.group.add(body);
+
+        // Legs
+        const legGeo = new THREE.BoxGeometry(0.2, 0.3, 0.2);
+        const leg1 = new THREE.Mesh(legGeo, creeperMaterial);
+        leg1.position.set(-0.1, 0.45, 0.1);
+        this.group.add(leg1);
+
+        const leg2 = new THREE.Mesh(legGeo, creeperMaterial);
+        leg2.position.set(0.1, 0.45, 0.1);
+        this.group.add(leg2);
+
+        const leg3 = new THREE.Mesh(legGeo, creeperMaterial);
+        leg3.position.set(-0.1, 0.45, -0.1);
+        this.group.add(leg3);
+
+        const leg4 = new THREE.Mesh(legGeo, creeperMaterial);
+        leg4.position.set(0.1, 0.45, -0.1);
+        this.group.add(leg4);
+
+        this.group.position.set(x, y, z);
+        scene.add(this.group);
+        
+        this.speed = 2.0;
+    }
+
+    update(delta, playerPos) {
+        const direction = new THREE.Vector3().subVectors(playerPos, this.group.position);
+        direction.y = 0; // Keep on ground
+        const distance = direction.length();
+
+        if (distance < 15 && distance > 1) {
+            direction.normalize();
+            this.group.position.add(direction.multiplyScalar(this.speed * delta));
+            this.group.lookAt(playerPos.x, this.group.position.y, playerPos.z);
+        }
+    }
+}
+
+const creepers = [];
+for (let i = 0; i < 5; i++) {
+    const x = (Math.random() - 0.5) * 20;
+    const z = (Math.random() - 0.5) * 20;
+    creepers.push(new Creeper(x, 0, z));
 }
 
 // Inventory System
@@ -208,7 +274,7 @@ document.addEventListener('keydown', function (event) {
             moveRight = true;
             break;
         case 'Space':
-            if (canJump === true) velocity.y += 350;
+            if (canJump === true) velocity.y += 250; // Lowered jump from 350
             canJump = false;
             break;
         case 'Digit1':
@@ -263,6 +329,8 @@ document.addEventListener('mousedown', function (event) {
             const intersect = intersects[0];
 
             if (event.button === 0) { // Left click to destroy
+                if (intersect.object.userData.type === 'lava') return; // Lava is unbreakable
+
                 const pos = intersect.object.position;
                 if (socket) socket.emit('blockDestroyed', { x: pos.x, y: pos.y, z: pos.z });
                 scene.remove(intersect.object);
@@ -282,6 +350,7 @@ document.addEventListener('mousedown', function (event) {
                 
                 const newBlock = new THREE.Mesh(blockGeometry, material);
                 newBlock.position.copy(newBlockPosition);
+                newBlock.userData.type = blockType;
                 scene.add(newBlock);
                 worldBlocks.push(newBlock);
             }
@@ -332,6 +401,9 @@ function animate() {
             controls.object.position.set(0, 5, 10);
             velocity.set(0, 0, 0);
         }
+
+        // Update Mobs
+        creepers.forEach(creeper => creeper.update(delta, controls.object.position));
 
         // Emit movement to server
         if (socket) {
