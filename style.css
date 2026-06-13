@@ -32,6 +32,24 @@ canvas {
     color: #ffffff;
 }
 
+#customization {
+    margin-top: 20px;
+    background-color: rgba(255, 255, 255, 0.1);
+    padding: 10px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#customization input[type="color"] {
+    border: none;
+    width: 30px;
+    height: 30px;
+    cursor: pointer;
+    background: none;
+}
+
 #crosshair {
     position: absolute;
     top: 50%;

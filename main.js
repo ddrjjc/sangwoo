@@ -57,14 +57,14 @@ class PlayerModel {
     constructor() {
         this.group = new THREE.Group();
         const skinMat = new THREE.MeshLambertMaterial({ color: 0xffdbac });
-        const shirtMat = new THREE.MeshLambertMaterial({ color: 0x00ffff });
+        this.shirtMat = new THREE.MeshLambertMaterial({ color: 0x00ffff });
         const pantsMat = new THREE.MeshLambertMaterial({ color: 0x0000ff });
 
         const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), skinMat);
         head.position.y = 1.5;
         this.group.add(head);
 
-        const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.25), shirtMat);
+        const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.25), this.shirtMat);
         body.position.y = 0.9;
         this.group.add(body);
 
@@ -77,10 +77,10 @@ class PlayerModel {
         this.group.add(rLeg);
 
         const armGeo = new THREE.BoxGeometry(0.24, 0.7, 0.24);
-        const lArm = new THREE.Mesh(armGeo, shirtMat);
+        const lArm = new THREE.Mesh(armGeo, this.shirtMat);
         lArm.position.set(-0.38, 0.9, 0);
         this.group.add(lArm);
-        const rArm = new THREE.Mesh(armGeo, shirtMat);
+        const rArm = new THREE.Mesh(armGeo, this.shirtMat);
         rArm.position.set(0.38, 0.9, 0);
         this.group.add(rArm);
 
@@ -92,13 +92,25 @@ class PlayerModel {
         this.group.rotation.y = rotY;
         this.group.visible = !isFirstPerson;
     }
+    setShirtColor(color) {
+        this.shirtMat.color.set(color);
+    }
 }
 const localPlayerModel = new PlayerModel();
+
+// Character Customization Listener
+const shirtColorInput = document.getElementById('shirtColor');
+if (shirtColorInput) {
+    shirtColorInput.addEventListener('input', (e) => {
+        localPlayerModel.setShirtColor(e.target.value);
+    });
+}
 
 // --- Creeper Mob ---
 class Creeper {
     constructor(x, y, z) {
         this.group = new THREE.Group();
+        this.velocity = new THREE.Vector3();
         const green = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
         const black = new THREE.MeshLambertMaterial({ color: 0x000000 });
 
@@ -106,7 +118,6 @@ class Creeper {
         head.position.y = 1.45;
         this.group.add(head);
 
-        // Face details
         const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.05), black);
         eyeL.position.set(-0.12, 1.55, 0.23);
         this.group.add(eyeL);
@@ -133,17 +144,40 @@ class Creeper {
         this.speed = 1.5;
     }
     update(delta, playerPos) {
+        this.velocity.y -= 40.0 * delta; // Gravity
+
         const dir = new THREE.Vector3().subVectors(playerPos, this.group.position);
         dir.y = 0;
         const dist = dir.length();
+        
         if (dist < 15 && dist > 1.2) {
             dir.normalize();
             this.group.position.add(dir.multiplyScalar(this.speed * delta));
             this.group.lookAt(playerPos.x, this.group.position.y, playerPos.z);
         }
+
+        this.group.position.y += this.velocity.y * delta;
+
+        // Collision detection for Creeper
+        let onGround = false;
+        worldBlocks.forEach(b => {
+            const dx = Math.abs(this.group.position.x - b.position.x);
+            const dz = Math.abs(this.group.position.z - b.position.z);
+            const dy = this.group.position.y - (b.position.y + 0.5); // Creeper feet at bottom of its group
+            if (dx < 0.6 && dz < 0.6 && dy > -0.1 && dy < 0.5 && this.velocity.y <= 0) {
+                this.group.position.y = b.position.y + 0.5;
+                this.velocity.y = 0;
+                onGround = true;
+            }
+        });
+
+        if (this.group.position.y < -20) {
+            this.group.position.set((Math.random()-0.5)*40, 5, (Math.random()-0.5)*40);
+            this.velocity.y = 0;
+        }
     }
 }
-const creepers = Array.from({length: 10}, () => new Creeper((Math.random()-0.5)*40, 0, (Math.random()-0.5)*40));
+const creepers = Array.from({length: 10}, () => new Creeper((Math.random()-0.5)*40, 5, (Math.random()-0.5)*40));
 
 // --- Controls & Physics ---
 const controls = new PointerLockControls(camera, document.body);
@@ -237,8 +271,6 @@ function animate() {
         if (moveState.forward || moveState.backward) velocity.z -= direction.z * 400.0 * delta;
         if (moveState.left || moveState.right) velocity.x -= direction.x * 400.0 * delta;
 
-        // Apply movement to logic position
-        const moveVec = new THREE.Vector3(-velocity.x * delta, velocity.y * delta, -velocity.z * delta);
         const playerForward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
         playerForward.y = 0; playerForward.normalize();
         const playerRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
@@ -289,4 +321,3 @@ document.addEventListener('contextmenu', e => e.preventDefault());
 document.getElementById('instructions').addEventListener('click', () => controls.lock());
 controls.addEventListener('lock', () => { instructions.style.display = 'none'; blocker.style.display = 'none'; });
 controls.addEventListener('unlock', () => { blocker.style.display = 'block'; instructions.style.display = 'block'; });
-const hotbarSlots = document.querySelectorAll('.slot'); // Fix for undefined in earlier logic
