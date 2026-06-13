@@ -11,7 +11,17 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
 // Socket Initialization
-const socket = io();
+let socket;
+if (typeof io !== 'undefined') {
+    try {
+        socket = io();
+    } catch (e) {
+        console.error("Socket.io initialization failed:", e);
+    }
+} else {
+    console.warn("Socket.io is not defined. Multiplayer features will be disabled.");
+}
+
 const remotePlayers = {};
 const playerGeometry = new THREE.BoxGeometry(0.5, 1.8, 0.5);
 const playerMaterial = new THREE.MeshLambertMaterial({ color: 0x0000ff }); // Blue for other players
@@ -119,20 +129,22 @@ const blocker = document.getElementById('blocker');
 const instructions = document.getElementById('instructions');
 const crosshair = document.getElementById('crosshair');
 
-instructions.addEventListener('click', function () {
-    controls.lock();
-});
+if (instructions) {
+    instructions.addEventListener('click', function () {
+        controls.lock();
+    });
+}
 
 controls.addEventListener('lock', function () {
-    instructions.style.display = 'none';
-    blocker.style.display = 'none';
-    crosshair.style.display = 'block';
+    if (instructions) instructions.style.display = 'none';
+    if (blocker) blocker.style.display = 'none';
+    if (crosshair) crosshair.style.display = 'block';
 });
 
 controls.addEventListener('unlock', function () {
-    blocker.style.display = 'block';
-    instructions.style.display = 'block';
-    crosshair.style.display = 'none';
+    if (blocker) blocker.style.display = 'block';
+    if (instructions) instructions.style.display = 'block';
+    if (crosshair) crosshair.style.display = 'none';
 });
 
 scene.add(controls.getObject());
@@ -210,14 +222,14 @@ document.addEventListener('mousedown', function (event) {
 
             if (event.button === 0) { // Left click to destroy
                 const pos = intersect.object.position;
-                socket.emit('blockDestroyed', { x: pos.x, y: pos.y, z: pos.z });
+                if (socket) socket.emit('blockDestroyed', { x: pos.x, y: pos.y, z: pos.z });
                 scene.remove(intersect.object);
                 worldBlocks.splice(worldBlocks.indexOf(intersect.object), 1);
             } else if (event.button === 2) { // Right click to place
                 const normal = intersect.face.normal;
                 const newBlockPosition = new THREE.Vector3().copy(intersect.object.position).add(normal);
 
-                socket.emit('blockPlaced', { x: newBlockPosition.x, y: newBlockPosition.y, z: newBlockPosition.z });
+                if (socket) socket.emit('blockPlaced', { x: newBlockPosition.x, y: newBlockPosition.y, z: newBlockPosition.z });
                 const newBlock = new THREE.Mesh(blockGeometry, placeBlockType);
                 newBlock.position.copy(newBlockPosition);
                 scene.add(newBlock);
