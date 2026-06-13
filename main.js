@@ -16,50 +16,52 @@ const remotePlayers = {};
 const playerGeometry = new THREE.BoxGeometry(0.5, 1.8, 0.5);
 const playerMaterial = new THREE.MeshLambertMaterial({ color: 0x0000ff }); // Blue for other players
 
-socket.on('currentPlayers', (players) => {
-    Object.keys(players).forEach((id) => {
-        if (id !== socket.id) {
-            addRemotePlayer(players[id]);
+if (socket) {
+    socket.on('currentPlayers', (players) => {
+        Object.keys(players).forEach((id) => {
+            if (id !== socket.id) {
+                addRemotePlayer(players[id]);
+            }
+        });
+    });
+
+    socket.on('newPlayer', (playerInfo) => {
+        addRemotePlayer(playerInfo);
+    });
+
+    socket.on('playerMoved', (playerInfo) => {
+        if (remotePlayers[playerInfo.id]) {
+            remotePlayers[playerInfo.id].position.copy(playerInfo.position);
+            remotePlayers[playerInfo.id].rotation.y = playerInfo.rotation.y;
         }
     });
-});
 
-socket.on('newPlayer', (playerInfo) => {
-    addRemotePlayer(playerInfo);
-});
+    socket.on('playerDisconnected', (id) => {
+        if (remotePlayers[id]) {
+            scene.remove(remotePlayers[id]);
+            delete remotePlayers[id];
+        }
+    });
 
-socket.on('playerMoved', (playerInfo) => {
-    if (remotePlayers[playerInfo.id]) {
-        remotePlayers[playerInfo.id].position.copy(playerInfo.position);
-        remotePlayers[playerInfo.id].rotation.y = playerInfo.rotation.y;
-    }
-});
+    socket.on('blockPlaced', (blockData) => {
+        const newBlock = new THREE.Mesh(blockGeometry, placeBlockType);
+        newBlock.position.set(blockData.x, blockData.y, blockData.z);
+        scene.add(newBlock);
+        worldBlocks.push(newBlock);
+    });
 
-socket.on('playerDisconnected', (id) => {
-    if (remotePlayers[id]) {
-        scene.remove(remotePlayers[id]);
-        delete remotePlayers[id];
-    }
-});
-
-socket.on('blockPlaced', (blockData) => {
-    const newBlock = new THREE.Mesh(blockGeometry, placeBlockType);
-    newBlock.position.set(blockData.x, blockData.y, blockData.z);
-    scene.add(newBlock);
-    worldBlocks.push(newBlock);
-});
-
-socket.on('blockDestroyed', (blockData) => {
-    const blockToRemove = worldBlocks.find(b => 
-        Math.round(b.position.x) === Math.round(blockData.x) && 
-        Math.round(b.position.y) === Math.round(blockData.y) && 
-        Math.round(b.position.z) === Math.round(blockData.z)
-    );
-    if (blockToRemove) {
-        scene.remove(blockToRemove);
-        worldBlocks.splice(worldBlocks.indexOf(blockToRemove), 1);
-    }
-});
+    socket.on('blockDestroyed', (blockData) => {
+        const blockToRemove = worldBlocks.find(b => 
+            Math.round(b.position.x) === Math.round(blockData.x) && 
+            Math.round(b.position.y) === Math.round(blockData.y) && 
+            Math.round(b.position.z) === Math.round(blockData.z)
+        );
+        if (blockToRemove) {
+            scene.remove(blockToRemove);
+            worldBlocks.splice(worldBlocks.indexOf(blockToRemove), 1);
+        }
+    });
+}
 
 function addRemotePlayer(playerInfo) {
     const remotePlayer = new THREE.Mesh(playerGeometry, playerMaterial);
@@ -263,12 +265,14 @@ function animate() {
         }
 
         // Emit movement to server
-        socket.emit('playerMovement', {
-            position: controls.getObject().position,
-            rotation: {
-                y: controls.getObject().rotation.y
-            }
-        });
+        if (socket) {
+            socket.emit('playerMovement', {
+                position: controls.getObject().position,
+                rotation: {
+                    y: controls.getObject().rotation.y
+                }
+            });
+        }
     }
 
     renderer.render(scene, camera);
