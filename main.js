@@ -8,12 +8,13 @@ scene.background = new THREE.Color(0x87ceeb); // Sky blue background
 
 // Camera
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(0, 2, 0); // Start above the ground
+camera.position.set(0, 5, 10); // Start higher and back to see the world
 
 // Renderer
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setClearColor(0x87ceeb); // Ensure background color is set on renderer too
 document.body.appendChild(renderer.domElement);
 
 // Socket Initialization
@@ -85,9 +86,9 @@ function addRemotePlayer(playerInfo) {
 }
 
 // Lighting
-const ambientLight = new THREE.AmbientLight(0x404040); // Soft white light
+const ambientLight = new THREE.AmbientLight(0xffffff, 1.0); // Bright white light
 scene.add(ambientLight);
-const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
 directionalLight.position.set(50, 100, 50); // Position the light
 directionalLight.castShadow = true; // Enable shadows
 scene.add(directionalLight);
