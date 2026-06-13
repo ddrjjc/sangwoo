@@ -8,22 +8,22 @@ scene.background = new THREE.Color(0x87ceeb); // Sky blue background
 
 // Camera
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, 2, 0); // Start above the ground
 
 // Renderer
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 
 // Socket Initialization
 let socket;
-if (typeof io !== 'undefined') {
-    try {
-        // When hosted on Cloudflare Pages, we might want to connect to a specific server
-        // For now, it tries to connect to the same host
+try {
+    if (typeof io !== 'undefined') {
         socket = io();
-    } catch (e) {
-        console.error("Socket.io initialization failed:", e);
     }
+} catch (e) {
+    console.error("Socket.io initialization failed:", e);
 }
 
 const remotePlayers = {};
