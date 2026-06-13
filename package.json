@@ -1,0 +1,25 @@
+{
+  "name": "project-sangwoo",
+  "version": "1.0.0",
+  "description": "A simplified Minecraft-like game built with Three.js.",
+  "main": "main.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ddrjjc/sangwoo.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ddrjjc/sangwoo/issues"
+  },
+  "homepage": "https://github.com/ddrjjc/sangwoo#readme",
+  "dependencies": {
+    "express": "^5.2.1",
+    "socket.io": "^4.8.3"
+  }
+}

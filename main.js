@@ -10,6 +10,64 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
+// Socket Initialization
+const socket = io();
+const remotePlayers = {};
+const playerGeometry = new THREE.BoxGeometry(0.5, 1.8, 0.5);
+const playerMaterial = new THREE.MeshLambertMaterial({ color: 0x0000ff }); // Blue for other players
+
+socket.on('currentPlayers', (players) => {
+    Object.keys(players).forEach((id) => {
+        if (id !== socket.id) {
+            addRemotePlayer(players[id]);
+        }
+    });
+});
+
+socket.on('newPlayer', (playerInfo) => {
+    addRemotePlayer(playerInfo);
+});
+
+socket.on('playerMoved', (playerInfo) => {
+    if (remotePlayers[playerInfo.id]) {
+        remotePlayers[playerInfo.id].position.copy(playerInfo.position);
+        remotePlayers[playerInfo.id].rotation.y = playerInfo.rotation.y;
+    }
+});
+
+socket.on('playerDisconnected', (id) => {
+    if (remotePlayers[id]) {
+        scene.remove(remotePlayers[id]);
+        delete remotePlayers[id];
+    }
+});
+
+socket.on('blockPlaced', (blockData) => {
+    const newBlock = new THREE.Mesh(blockGeometry, placeBlockType);
+    newBlock.position.set(blockData.x, blockData.y, blockData.z);
+    scene.add(newBlock);
+    worldBlocks.push(newBlock);
+});
+
+socket.on('blockDestroyed', (blockData) => {
+    const blockToRemove = worldBlocks.find(b => 
+        Math.round(b.position.x) === Math.round(blockData.x) && 
+        Math.round(b.position.y) === Math.round(blockData.y) && 
+        Math.round(b.position.z) === Math.round(blockData.z)
+    );
+    if (blockToRemove) {
+        scene.remove(blockToRemove);
+        worldBlocks.splice(worldBlocks.indexOf(blockToRemove), 1);
+    }
+});
+
+function addRemotePlayer(playerInfo) {
+    const remotePlayer = new THREE.Mesh(playerGeometry, playerMaterial);
+    remotePlayer.position.copy(playerInfo.position);
+    scene.add(remotePlayer);
+    remotePlayers[playerInfo.id] = remotePlayer;
+}
+
 // Lighting
 const ambientLight = new THREE.AmbientLight(0x404040); // Soft white light
 scene.add(ambientLight);
@@ -149,12 +207,15 @@ document.addEventListener('mousedown', function (event) {
             const intersect = intersects[0];
 
             if (event.button === 0) { // Left click to destroy
+                const pos = intersect.object.position;
+                socket.emit('blockDestroyed', { x: pos.x, y: pos.y, z: pos.z });
                 scene.remove(intersect.object);
                 worldBlocks.splice(worldBlocks.indexOf(intersect.object), 1);
             } else if (event.button === 2) { // Right click to place
                 const normal = intersect.face.normal;
                 const newBlockPosition = new THREE.Vector3().copy(intersect.object.position).add(normal);
 
+                socket.emit('blockPlaced', { x: newBlockPosition.x, y: newBlockPosition.y, z: newBlockPosition.z });
                 const newBlock = new THREE.Mesh(blockGeometry, placeBlockType);
                 newBlock.position.copy(newBlockPosition);
                 scene.add(newBlock);
@@ -200,6 +261,14 @@ function animate() {
             controls.getObject().position.y = 1;
             canJump = true;
         }
+
+        // Emit movement to server
+        socket.emit('playerMovement', {
+            position: controls.getObject().position,
+            rotation: {
+                y: controls.getObject().rotation.y
+            }
+        });
     }
 
     renderer.render(scene, camera);
