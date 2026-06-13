@@ -57,8 +57,8 @@ const blockMaterials = {
 };
 
 const worldBlocks = [];
-const worldWidth = 80; // Expanded map
-const worldDepth = 80; // Expanded map
+const worldWidth = 80;
+const worldDepth = 80;
 
 for (let x = -worldWidth / 2; x < worldWidth / 2; x++) {
     for (let z = -worldDepth / 2; z < worldDepth / 2; z++) {
@@ -79,9 +79,8 @@ function createBlock(x, y, z, type) {
 
 // --- Sword (Viewmodel) ---
 const swordGroup = new THREE.Group();
-const swordMat = new THREE.MeshLambertMaterial({ color: 0xcccccc });
 const swordHandle = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.2, 0.05), new THREE.MeshLambertMaterial({color:0x3d2b1f}));
-const swordBlade = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.8, 0.03), swordMat);
+const swordBlade = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.8, 0.03), new THREE.MeshLambertMaterial({ color: 0xcccccc }));
 swordBlade.position.y = 0.4;
 swordGroup.add(swordHandle);
 swordGroup.add(swordBlade);
@@ -97,7 +96,6 @@ let attackTime = 0;
 class Creeper {
     constructor(x, y, z) {
         this.group = new THREE.Group();
-        this.velocity = new THREE.Vector3();
         const green = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
         const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), green);
         head.position.y = 1.45;
@@ -174,6 +172,27 @@ function updateUI() {
     swordGroup.visible = (inventory[selectedBlockIndex] === 'sword');
 }
 
+// --- TNT Logic ---
+function explode(pos) {
+    // Visual Flash
+    const flash = new THREE.PointLight(0xffffff, 10, 10);
+    flash.position.copy(pos);
+    scene.add(flash);
+    setTimeout(() => scene.remove(flash), 200);
+
+    const radius = 5;
+    const blocksToRemove = [];
+    
+    // Efficient distance check
+    for (let i = worldBlocks.length - 1; i >= 0; i--) {
+        const b = worldBlocks[i];
+        if (b.position.distanceTo(pos) <= radius && b.userData.type !== 'lava') {
+            scene.remove(b);
+            worldBlocks.splice(i, 1);
+        }
+    }
+}
+
 // --- Interaction ---
 const raycaster = new THREE.Raycaster();
 document.addEventListener('mousedown', (e) => {
@@ -190,24 +209,35 @@ document.addEventListener('mousedown', (e) => {
         const intersect = intersects[0];
         if (e.button === 0) {
             if (intersect.object.userData.type === 'lava') return;
-            if (intersect.object.userData.type === 'tnt') setTimeout(() => explode(intersect.object.position.clone()), 5000);
-            scene.remove(intersect.object);
-            worldBlocks.splice(worldBlocks.indexOf(intersect.object), 1);
+            
+            if (intersect.object.userData.type === 'tnt') {
+                const tntBlock = intersect.object;
+                const pos = tntBlock.position.clone();
+                
+                // Visual Fuse Feedback (Pulsing)
+                let count = 0;
+                const interval = setInterval(() => {
+                    tntBlock.material.emissive.set(count % 2 === 0 ? 0xffffff : 0x000000);
+                    count++;
+                    if (count >= 10) {
+                        clearInterval(interval);
+                        explode(pos);
+                    }
+                }, 500);
+
+                // Don't remove TNT immediately from scene, but remove from worldBlocks so it's not clicked again
+                worldBlocks.splice(worldBlocks.indexOf(tntBlock), 1);
+                setTimeout(() => scene.remove(tntBlock), 5000);
+            } else {
+                scene.remove(intersect.object);
+                worldBlocks.splice(worldBlocks.indexOf(intersect.object), 1);
+            }
         } else if (e.button === 2 && inventory[selectedBlockIndex] !== 'sword') {
             const pos = new THREE.Vector3().copy(intersect.object.position).add(intersect.face.normal);
             createBlock(pos.x, pos.y, pos.z, inventory[selectedBlockIndex]);
         }
     }
 });
-
-function explode(pos) {
-    const radius = 4;
-    const targets = worldBlocks.filter(b => b.position.distanceTo(pos) <= radius && b.userData.type !== 'lava');
-    targets.forEach(b => {
-        scene.remove(b);
-        worldBlocks.splice(worldBlocks.indexOf(b), 1);
-    });
-}
 
 // --- Game Loop ---
 let prevTime = performance.now();
@@ -236,7 +266,6 @@ function animate() {
             controls.object.position.y = 1;
         }
 
-        // Sword Anim
         if (isAttacking) {
             attackTime += delta * 15;
             swordGroup.rotation.x = Math.PI / 4 - Math.sin(attackTime) * 1.2;
@@ -245,7 +274,6 @@ function animate() {
                 swordGroup.rotation.x = Math.PI / 4;
             }
         }
-
         creepers.forEach(c => c.update(delta, controls.object.position));
     }
     renderer.render(scene, camera);
