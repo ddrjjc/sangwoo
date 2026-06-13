@@ -97,8 +97,8 @@ scene.add(directionalLight);
 
 // Ground - Voxel World Generation
 const blockSize = 1;
-const worldWidth = 32;
-const worldDepth = 32;
+const worldWidth = 64; // Expanded map
+const worldDepth = 64; // Expanded map
 
 const blockGeometry = new THREE.BoxGeometry(blockSize, blockSize, blockSize);
 const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x00ff00 }); // Green for grass
@@ -106,13 +106,15 @@ const stoneMaterial = new THREE.MeshLambertMaterial({ color: 0x888888 }); // Gre
 const dirtMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 }); // Brown for dirt
 const woodMaterial = new THREE.MeshLambertMaterial({ color: 0x654321 }); // Dark brown for wood
 const lavaMaterial = new THREE.MeshLambertMaterial({ color: 0xff4500, emissive: 0xff0000 }); // Glowing lava
+const tntMaterial = new THREE.MeshLambertMaterial({ color: 0xff0000 }); // Red for TNT (simple)
 
 const blockMaterials = {
     'grass': groundMaterial,
     'dirt': dirtMaterial,
     'stone': stoneMaterial,
     'wood': woodMaterial,
-    'lava': lavaMaterial
+    'lava': lavaMaterial,
+    'tnt': tntMaterial
 };
 
 const worldBlocks = []; // To store references to all blocks in the world
@@ -148,7 +150,6 @@ class Creeper {
         this.group = new THREE.Group();
         
         const creeperMaterial = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
-        const faceMaterial = new THREE.MeshLambertMaterial({ color: 0x000000 });
 
         // Head
         const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), creeperMaterial);
@@ -198,15 +199,15 @@ class Creeper {
 }
 
 const creepers = [];
-for (let i = 0; i < 5; i++) {
-    const x = (Math.random() - 0.5) * 20;
-    const z = (Math.random() - 0.5) * 20;
+for (let i = 0; i < 10; i++) {
+    const x = (Math.random() - 0.5) * 40;
+    const z = (Math.random() - 0.5) * 40;
     creepers.push(new Creeper(x, 0, z));
 }
 
 // Inventory System
 let selectedBlockIndex = 0;
-const inventory = ['grass', 'dirt', 'stone', 'wood'];
+const inventory = ['grass', 'dirt', 'stone', 'wood', 'tnt'];
 const hotbarSlots = document.querySelectorAll('.slot');
 
 function updateInventoryUI() {
@@ -274,48 +275,54 @@ document.addEventListener('keydown', function (event) {
             moveRight = true;
             break;
         case 'Space':
-            if (canJump === true) velocity.y += 250; // Lowered jump from 350
+            if (canJump === true) velocity.y += 250; 
             canJump = false;
             break;
-        case 'Digit1':
-            selectedBlockIndex = 0;
-            updateInventoryUI();
-            break;
-        case 'Digit2':
-            selectedBlockIndex = 1;
-            updateInventoryUI();
-            break;
-        case 'Digit3':
-            selectedBlockIndex = 2;
-            updateInventoryUI();
-            break;
-        case 'Digit4':
-            selectedBlockIndex = 3;
-            updateInventoryUI();
-            break;
+        case 'Digit1': selectedBlockIndex = 0; updateInventoryUI(); break;
+        case 'Digit2': selectedBlockIndex = 1; updateInventoryUI(); break;
+        case 'Digit3': selectedBlockIndex = 2; updateInventoryUI(); break;
+        case 'Digit4': selectedBlockIndex = 3; updateInventoryUI(); break;
+        case 'Digit5': selectedBlockIndex = 4; updateInventoryUI(); break;
     }
 });
 
 document.addEventListener('keyup', function (event) {
     switch (event.code) {
         case 'ArrowUp':
-        case 'KeyW':
-            moveForward = false;
-            break;
+        case 'KeyW': moveForward = false; break;
         case 'ArrowLeft':
-        case 'KeyA':
-            moveLeft = false;
-            break;
+        case 'KeyA': moveLeft = false; break;
         case 'ArrowDown':
-        case 'KeyS':
-            moveBackward = false;
-            break;
+        case 'KeyS': moveBackward = false; break;
         case 'ArrowRight':
-        case 'KeyD':
-            moveRight = false;
-            break;
+        case 'KeyD': moveRight = false; break;
     }
 });
+
+// TNT Explosion Logic
+function explode(pos) {
+    const explosionRadius = 3;
+    const blocksToRemove = [];
+
+    worldBlocks.forEach(block => {
+        const dist = block.position.distanceTo(pos);
+        if (dist <= explosionRadius && block.userData.type !== 'lava') {
+            blocksToRemove.push(block);
+        }
+    });
+
+    blocksToRemove.forEach(block => {
+        scene.remove(block);
+        worldBlocks.splice(worldBlocks.indexOf(block), 1);
+        if (socket) socket.emit('blockDestroyed', { x: block.position.x, y: block.position.y, z: block.position.z });
+    });
+
+    // Visual effect (simple)
+    const flash = new THREE.PointLight(0xffaa00, 10, 10);
+    flash.position.copy(pos);
+    scene.add(flash);
+    setTimeout(() => scene.remove(flash), 200);
+}
 
 // Block Interaction
 const raycaster = new THREE.Raycaster();
@@ -328,8 +335,13 @@ document.addEventListener('mousedown', function (event) {
         if (intersects.length > 0) {
             const intersect = intersects[0];
 
-            if (event.button === 0) { // Left click to destroy
-                if (intersect.object.userData.type === 'lava') return; // Lava is unbreakable
+            if (event.button === 0) { // Left click to destroy or ignite TNT
+                if (intersect.object.userData.type === 'lava') return; 
+
+                if (intersect.object.userData.type === 'tnt') {
+                    const pos = intersect.object.position.clone();
+                    setTimeout(() => explode(pos), 1000); // 1 second fuse
+                }
 
                 const pos = intersect.object.position;
                 if (socket) socket.emit('blockDestroyed', { x: pos.x, y: pos.y, z: pos.z });
@@ -358,10 +370,7 @@ document.addEventListener('mousedown', function (event) {
     }
 });
 
-document.addEventListener('contextmenu', function (event) {
-    event.preventDefault(); // Prevent context menu on right click
-});
-
+document.addEventListener('contextmenu', (e) => e.preventDefault());
 
 let prevTime = performance.now();
 
@@ -375,11 +384,11 @@ function animate() {
     if (controls.isLocked === true) {
         velocity.x -= velocity.x * 10.0 * delta;
         velocity.z -= velocity.z * 10.0 * delta;
-        velocity.y -= 9.8 * 100.0 * delta; // 100.0 = mass
+        velocity.y -= 9.8 * 100.0 * delta; 
 
         direction.z = Number(moveForward) - Number(moveBackward);
         direction.x = Number(moveRight) - Number(moveLeft);
-        direction.normalize(); // this ensures consistent movements in all directions
+        direction.normalize(); 
 
         if (moveForward || moveBackward) velocity.z -= direction.z * 400.0 * delta;
         if (moveLeft || moveRight) velocity.x -= direction.x * 400.0 * delta;
@@ -387,7 +396,7 @@ function animate() {
         controls.moveRight(-velocity.x * delta);
         controls.moveForward(-velocity.z * delta);
 
-        controls.object.position.y += (velocity.y * delta); // new behavior
+        controls.object.position.y += (velocity.y * delta); 
 
         if (controls.object.position.y < 1) {
             velocity.y = 0;
@@ -395,34 +404,26 @@ function animate() {
             canJump = true;
         }
 
-        // Lava Check (Simple)
         if (controls.object.position.y < -1.5) {
-            // Respawn if falling into lava
             controls.object.position.set(0, 5, 10);
             velocity.set(0, 0, 0);
         }
 
-        // Update Mobs
         creepers.forEach(creeper => creeper.update(delta, controls.object.position));
 
-        // Emit movement to server
         if (socket) {
             socket.emit('playerMovement', {
                 position: controls.object.position,
-                rotation: {
-                    y: controls.object.rotation.y
-                }
+                rotation: { y: controls.object.rotation.y }
             });
         }
     }
 
     renderer.render(scene, camera);
-
     prevTime = time;
 }
 animate();
 
-// Handle window resize
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
