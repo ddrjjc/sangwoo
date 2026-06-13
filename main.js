@@ -152,7 +152,7 @@ controls.addEventListener('unlock', function () {
     if (crosshair) crosshair.style.display = 'none';
 });
 
-scene.add(controls.getObject());
+scene.add(controls.object);
 
 let moveForward = false;
 let moveBackward = false;
@@ -272,20 +272,20 @@ function animate() {
         controls.moveRight(-velocity.x * delta);
         controls.moveForward(-velocity.z * delta);
 
-        controls.getObject().position.y += (velocity.y * delta); // new behavior
+        controls.object.position.y += (velocity.y * delta); // new behavior
 
-        if (controls.getObject().position.y < 1) {
+        if (controls.object.position.y < 1) {
             velocity.y = 0;
-            controls.getObject().position.y = 1;
+            controls.object.position.y = 1;
             canJump = true;
         }
 
         // Emit movement to server
         if (socket) {
             socket.emit('playerMovement', {
-                position: controls.getObject().position,
+                position: controls.object.position,
                 rotation: {
-                    y: controls.getObject().rotation.y
+                    y: controls.object.rotation.y
                 }
             });
         }
