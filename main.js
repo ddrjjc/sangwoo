@@ -13,6 +13,31 @@ renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setClearColor(0x87ceeb);
 document.body.appendChild(renderer.domElement);
 
+// --- TNT Texture ---
+function createTNTMaterial() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    
+    // Background
+    ctx.fillStyle = '#ff0000';
+    ctx.fillRect(0, 0, 128, 128);
+    
+    // Stripes
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 40, 128, 48);
+    
+    // Text
+    ctx.fillStyle = '#000000';
+    ctx.font = 'bold 40px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('TNT', 64, 75);
+    
+    const texture = new THREE.CanvasTexture(canvas);
+    return new THREE.MeshLambertMaterial({ map: texture });
+}
+
 // --- Lighting ---
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
 scene.add(ambientLight);
@@ -28,12 +53,12 @@ const blockMaterials = {
     'stone': new THREE.MeshLambertMaterial({ color: 0x888888 }),
     'wood': new THREE.MeshLambertMaterial({ color: 0x654321 }),
     'lava': new THREE.MeshLambertMaterial({ color: 0xff4500, emissive: 0xff0000 }),
-    'tnt': new THREE.MeshLambertMaterial({ color: 0xff0000 })
+    'tnt': createTNTMaterial()
 };
 
 const worldBlocks = [];
-const worldWidth = 64;
-const worldDepth = 64;
+const worldWidth = 80; // Expanded map
+const worldDepth = 80; // Expanded map
 
 for (let x = -worldWidth / 2; x < worldWidth / 2; x++) {
     for (let z = -worldDepth / 2; z < worldDepth / 2; z++) {
@@ -52,162 +77,89 @@ function createBlock(x, y, z, type) {
     return block;
 }
 
-// --- Player Model (Steve) ---
-class PlayerModel {
-    constructor() {
-        this.group = new THREE.Group();
-        const skinMat = new THREE.MeshLambertMaterial({ color: 0xffdbac });
-        this.shirtMat = new THREE.MeshLambertMaterial({ color: 0x00ffff });
-        const pantsMat = new THREE.MeshLambertMaterial({ color: 0x0000ff });
+// --- Sword (Viewmodel) ---
+const swordGroup = new THREE.Group();
+const swordMat = new THREE.MeshLambertMaterial({ color: 0xcccccc });
+const swordHandle = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.2, 0.05), new THREE.MeshLambertMaterial({color:0x3d2b1f}));
+const swordBlade = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.8, 0.03), swordMat);
+swordBlade.position.y = 0.4;
+swordGroup.add(swordHandle);
+swordGroup.add(swordBlade);
+swordGroup.position.set(0.5, -0.5, -0.8);
+swordGroup.rotation.x = Math.PI / 4;
+camera.add(swordGroup);
+scene.add(camera);
 
-        const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), skinMat);
-        head.position.y = 1.5;
-        this.group.add(head);
+let isAttacking = false;
+let attackTime = 0;
 
-        const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.25), this.shirtMat);
-        body.position.y = 0.9;
-        this.group.add(body);
-
-        const legGeo = new THREE.BoxGeometry(0.24, 0.6, 0.24);
-        const lLeg = new THREE.Mesh(legGeo, pantsMat);
-        lLeg.position.set(-0.13, 0.3, 0);
-        this.group.add(lLeg);
-        const rLeg = new THREE.Mesh(legGeo, pantsMat);
-        rLeg.position.set(0.13, 0.3, 0);
-        this.group.add(rLeg);
-
-        const armGeo = new THREE.BoxGeometry(0.24, 0.7, 0.24);
-        const lArm = new THREE.Mesh(armGeo, this.shirtMat);
-        lArm.position.set(-0.38, 0.9, 0);
-        this.group.add(lArm);
-        const rArm = new THREE.Mesh(armGeo, this.shirtMat);
-        rArm.position.set(0.38, 0.9, 0);
-        this.group.add(rArm);
-
-        scene.add(this.group);
-    }
-    update(pos, rotY, isFirstPerson) {
-        this.group.position.copy(pos);
-        this.group.position.y -= 1.0; // Offset to feet
-        this.group.rotation.y = rotY;
-        this.group.visible = !isFirstPerson;
-    }
-    setShirtColor(color) {
-        this.shirtMat.color.set(color);
-    }
-}
-const localPlayerModel = new PlayerModel();
-
-// Character Customization Listener
-const shirtColorInput = document.getElementById('shirtColor');
-if (shirtColorInput) {
-    shirtColorInput.addEventListener('input', (e) => {
-        localPlayerModel.setShirtColor(e.target.value);
-    });
-}
-
-// --- Creeper Mob ---
+// --- Creeper ---
 class Creeper {
     constructor(x, y, z) {
         this.group = new THREE.Group();
         this.velocity = new THREE.Vector3();
         const green = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
-        const black = new THREE.MeshLambertMaterial({ color: 0x000000 });
-
         const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), green);
         head.position.y = 1.45;
         this.group.add(head);
-
-        const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.05), black);
-        eyeL.position.set(-0.12, 1.55, 0.23);
-        this.group.add(eyeL);
-        const eyeR = eyeL.clone();
-        eyeR.position.x = 0.12;
-        this.group.add(eyeR);
-        const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.05), black);
-        mouth.position.set(0, 1.35, 0.23);
-        this.group.add(mouth);
-
         const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.8, 0.3), green);
         body.position.y = 0.8;
         this.group.add(body);
-
-        const legGeo = new THREE.BoxGeometry(0.25, 0.4, 0.25);
-        for(let i=0; i<4; i++) {
-            const leg = new THREE.Mesh(legGeo, green);
-            leg.position.set(i<2? -0.15:0.15, 0.2, i%2==0? 0.15:-0.15);
-            this.group.add(leg);
-        }
-
         this.group.position.set(x, y, z);
         scene.add(this.group);
-        this.speed = 1.5;
     }
     update(delta, playerPos) {
-        this.velocity.y -= 40.0 * delta; // Gravity
-
         const dir = new THREE.Vector3().subVectors(playerPos, this.group.position);
         dir.y = 0;
-        const dist = dir.length();
-        
-        if (dist < 15 && dist > 1.2) {
+        if (dir.length() < 15 && dir.length() > 1.2) {
             dir.normalize();
-            this.group.position.add(dir.multiplyScalar(this.speed * delta));
+            this.group.position.add(dir.multiplyScalar(1.5 * delta));
             this.group.lookAt(playerPos.x, this.group.position.y, playerPos.z);
-        }
-
-        this.group.position.y += this.velocity.y * delta;
-
-        // Collision detection for Creeper
-        let onGround = false;
-        worldBlocks.forEach(b => {
-            const dx = Math.abs(this.group.position.x - b.position.x);
-            const dz = Math.abs(this.group.position.z - b.position.z);
-            const dy = this.group.position.y - (b.position.y + 0.5); // Creeper feet at bottom of its group
-            if (dx < 0.6 && dz < 0.6 && dy > -0.1 && dy < 0.5 && this.velocity.y <= 0) {
-                this.group.position.y = b.position.y + 0.5;
-                this.velocity.y = 0;
-                onGround = true;
-            }
-        });
-
-        if (this.group.position.y < -20) {
-            this.group.position.set((Math.random()-0.5)*40, 5, (Math.random()-0.5)*40);
-            this.velocity.y = 0;
         }
     }
 }
-const creepers = Array.from({length: 10}, () => new Creeper((Math.random()-0.5)*40, 5, (Math.random()-0.5)*40));
+const creepers = Array.from({length: 15}, () => new Creeper((Math.random()-0.5)*60, 0, (Math.random()-0.5)*60));
 
-// --- Controls & Physics ---
+// --- Controls ---
 const controls = new PointerLockControls(camera, document.body);
-scene.add(controls.object);
-camera.position.set(0, 5, 10);
+const pocket = document.getElementById('pocket');
+const blocker = document.getElementById('blocker');
+const instructions = document.getElementById('instructions');
+const crosshair = document.getElementById('crosshair');
 
-let isFirstPerson = true;
 let selectedBlockIndex = 0;
-const inventory = ['grass', 'dirt', 'stone', 'wood', 'tnt'];
-
+const inventory = ['grass', 'dirt', 'stone', 'wood', 'tnt', 'sword'];
 const moveState = { forward: false, backward: false, left: false, right: false };
 const velocity = new THREE.Vector3();
-const direction = new THREE.Vector3();
-let canJump = false;
 
 document.addEventListener('keydown', (e) => {
+    if (e.code === 'KeyE') {
+        if (pocket.style.display === 'flex') {
+            pocket.style.display = 'none';
+            controls.lock();
+        } else {
+            controls.unlock();
+            pocket.style.display = 'flex';
+        }
+        return;
+    }
+    if (!controls.isLocked) return;
+
     switch (e.code) {
         case 'KeyW': moveState.forward = true; break;
         case 'KeyS': moveState.backward = true; break;
         case 'KeyA': moveState.left = true; break;
         case 'KeyD': moveState.right = true; break;
-        case 'Space': if (canJump) velocity.y += 15; canJump = false; break;
-        case 'F5': isFirstPerson = !isFirstPerson; break;
+        case 'Space': velocity.y += 350 * 0.05; break;
         case 'Digit1': selectedBlockIndex = 0; updateUI(); break;
         case 'Digit2': selectedBlockIndex = 1; updateUI(); break;
         case 'Digit3': selectedBlockIndex = 2; updateUI(); break;
         case 'Digit4': selectedBlockIndex = 3; updateUI(); break;
         case 'Digit5': selectedBlockIndex = 4; updateUI(); break;
+        case 'Digit6': selectedBlockIndex = 5; updateUI(); break;
     }
 });
+
 document.addEventListener('keyup', (e) => {
     switch (e.code) {
         case 'KeyW': moveState.forward = false; break;
@@ -219,22 +171,29 @@ document.addEventListener('keyup', (e) => {
 
 function updateUI() {
     document.querySelectorAll('.slot').forEach((s, i) => s.classList.toggle('active', i === selectedBlockIndex));
+    swordGroup.visible = (inventory[selectedBlockIndex] === 'sword');
 }
 
 // --- Interaction ---
 const raycaster = new THREE.Raycaster();
 document.addEventListener('mousedown', (e) => {
     if (!controls.isLocked) return;
+    
+    if (inventory[selectedBlockIndex] === 'sword') {
+        isAttacking = true;
+        attackTime = 0;
+    }
+
     raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
     const intersects = raycaster.intersectObjects(worldBlocks);
     if (intersects.length > 0) {
         const intersect = intersects[0];
         if (e.button === 0) {
             if (intersect.object.userData.type === 'lava') return;
-            if (intersect.object.userData.type === 'tnt') setTimeout(() => explode(intersect.object.position.clone()), 1000);
+            if (intersect.object.userData.type === 'tnt') setTimeout(() => explode(intersect.object.position.clone()), 5000);
             scene.remove(intersect.object);
             worldBlocks.splice(worldBlocks.indexOf(intersect.object), 1);
-        } else if (e.button === 2) {
+        } else if (e.button === 2 && inventory[selectedBlockIndex] !== 'sword') {
             const pos = new THREE.Vector3().copy(intersect.object.position).add(intersect.face.normal);
             createBlock(pos.x, pos.y, pos.z, inventory[selectedBlockIndex]);
         }
@@ -242,7 +201,7 @@ document.addEventListener('mousedown', (e) => {
 });
 
 function explode(pos) {
-    const radius = 3;
+    const radius = 4;
     const targets = worldBlocks.filter(b => b.position.distanceTo(pos) <= radius && b.userData.type !== 'lava');
     targets.forEach(b => {
         scene.remove(b);
@@ -252,8 +211,6 @@ function explode(pos) {
 
 // --- Game Loop ---
 let prevTime = performance.now();
-const pPos = new THREE.Vector3(0, 5, 0); // Logic position
-
 function animate() {
     requestAnimationFrame(animate);
     const time = performance.now();
@@ -262,50 +219,34 @@ function animate() {
     if (controls.isLocked) {
         velocity.x -= velocity.x * 10.0 * delta;
         velocity.z -= velocity.z * 10.0 * delta;
-        velocity.y -= 40.0 * delta; // Gravity
+        velocity.y -= 9.8 * 100.0 * delta * 0.1;
 
-        direction.z = Number(moveState.forward) - Number(moveState.backward);
-        direction.x = Number(moveState.right) - Number(moveState.left);
-        direction.normalize();
+        const directionZ = Number(moveState.forward) - Number(moveState.backward);
+        const directionX = Number(moveState.right) - Number(moveState.left);
 
-        if (moveState.forward || moveState.backward) velocity.z -= direction.z * 400.0 * delta;
-        if (moveState.left || moveState.right) velocity.x -= direction.x * 400.0 * delta;
+        if (moveState.forward || moveState.backward) velocity.z -= directionZ * 400.0 * delta;
+        if (moveState.left || moveState.right) velocity.x -= directionX * 400.0 * delta;
 
-        const playerForward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-        playerForward.y = 0; playerForward.normalize();
-        const playerRight = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-        playerRight.y = 0; playerRight.normalize();
+        controls.moveRight(-velocity.x * delta);
+        controls.moveForward(-velocity.z * delta);
+        controls.object.position.y += (velocity.y * delta);
 
-        pPos.add(playerRight.multiplyScalar(-velocity.x * delta));
-        pPos.add(playerForward.multiplyScalar(-velocity.z * delta));
-        pPos.y += (velocity.y * delta);
-
-        // Simple Voxel Collision
-        let onGround = false;
-        worldBlocks.forEach(b => {
-            const dx = Math.abs(pPos.x - b.position.x);
-            const dz = Math.abs(pPos.z - b.position.z);
-            const dy = pPos.y - (b.position.y + 1); // 1 is block top
-            if (dx < 0.7 && dz < 0.7 && dy > -0.1 && dy < 0.5 && velocity.y <= 0) {
-                pPos.y = b.position.y + 1.5;
-                velocity.y = 0;
-                onGround = true;
-            }
-        });
-        canJump = onGround;
-
-        if (pPos.y < -20) { pPos.set(0, 5, 0); velocity.set(0,0,0); }
-
-        localPlayerModel.update(pPos, camera.rotation.y, isFirstPerson);
-        
-        if (isFirstPerson) {
-            camera.position.copy(pPos);
-        } else {
-            const offset = new THREE.Vector3(0, 1, 5).applyQuaternion(camera.quaternion);
-            camera.position.copy(pPos).add(offset);
+        if (controls.object.position.y < 1) {
+            velocity.y = 0;
+            controls.object.position.y = 1;
         }
 
-        creepers.forEach(c => c.update(delta, pPos));
+        // Sword Anim
+        if (isAttacking) {
+            attackTime += delta * 15;
+            swordGroup.rotation.x = Math.PI / 4 - Math.sin(attackTime) * 1.2;
+            if (attackTime >= Math.PI) {
+                isAttacking = false;
+                swordGroup.rotation.x = Math.PI / 4;
+            }
+        }
+
+        creepers.forEach(c => c.update(delta, controls.object.position));
     }
     renderer.render(scene, camera);
     prevTime = time;
@@ -317,7 +258,18 @@ window.addEventListener('resize', () => {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
-document.addEventListener('contextmenu', e => e.preventDefault());
-document.getElementById('instructions').addEventListener('click', () => controls.lock());
-controls.addEventListener('lock', () => { instructions.style.display = 'none'; blocker.style.display = 'none'; });
-controls.addEventListener('unlock', () => { blocker.style.display = 'block'; instructions.style.display = 'block'; });
+
+instructions.addEventListener('click', () => controls.lock());
+controls.addEventListener('lock', () => { 
+    instructions.style.display = 'none'; 
+    blocker.style.display = 'none'; 
+    crosshair.style.display = 'block';
+});
+controls.addEventListener('unlock', () => { 
+    if (pocket.style.display !== 'flex') {
+        blocker.style.display = 'block'; 
+        instructions.style.display = 'block'; 
+    }
+    crosshair.style.display = 'none';
+});
+updateUI();

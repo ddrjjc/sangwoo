@@ -22,8 +22,8 @@
         <p>
           Move: WASD | Jump: SPACE<br/>
           Left Click: Destroy / TNT Ignite<br/>
-          Right Click: Place | 1-5: Select Block<br/>
-          F5: Toggle 1st/3rd Person
+          Right Click: Place | 1-6: Select Item<br/>
+          E: Open Pocket (Inventory)
         </p>
         <div id="customization">
           <label for="shirtColor">Shirt Color: </label>
@@ -32,12 +32,27 @@
       </div>
     </div>
     <div id="crosshair"></div>
+    <div id="pocket">
+      <div id="pocket-content">
+        <h2>Pocket</h2>
+        <div class="pocket-grid">
+          <div class="pocket-item">Grass</div>
+          <div class="pocket-item">Dirt</div>
+          <div class="pocket-item">Stone</div>
+          <div class="pocket-item">Wood</div>
+          <div class="pocket-item">TNT</div>
+          <div class="pocket-item">Sword</div>
+        </div>
+        <p>Press E to close</p>
+      </div>
+    </div>
     <div id="hotbar">
       <div class="slot active" data-index="1">Grass</div>
       <div class="slot" data-index="2">Dirt</div>
       <div class="slot" data-index="3">Stone</div>
       <div class="slot" data-index="4">Wood</div>
       <div class="slot" data-index="5">TNT</div>
+      <div class="slot" data-index="6">Sword</div>
     </div>
     <script type="module" src="main.js"></script>
   </body></html>
